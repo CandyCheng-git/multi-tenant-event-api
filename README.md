@@ -1,58 +1,144 @@
 # Multi-Tenant Event API
 
-Independent portfolio project built with **C# / .NET**, **Entity Framework Core**, **PostgreSQL**, **Docker**, and **xUnit**.
+[![CI](https://github.com/CandyCheng-git/multi-tenant-event-api/actions/workflows/ci.yml/badge.svg)](https://github.com/CandyCheng-git/multi-tenant-event-api/actions/workflows/ci.yml)
 
-The goal is to demonstrate production-style backend engineering around multi-tenant data isolation, REST API design, validation, timezone handling, and regression testing.
+A public backend portfolio project built with **C# / .NET 10**, **Entity Framework Core**, **PostgreSQL**, **Docker Compose** and **xUnit**.
 
-> This repository is an original portfolio project. It is not a copy of any employer, volunteer organisation, or technical-assessment repository.
+It demonstrates a small multi-tenant event-booking API with server-side organisation isolation, timezone-aware event data, capacity enforcement and regression tests.
 
-## Planned capabilities
+> This is an independent portfolio implementation and does not reproduce a private or active technical-assessment repository.
 
-- Organisation-scoped events and bookings
-- Tenant isolation using EF Core global query filters
-- REST endpoints with explicit HTTP status behaviour
-- Capacity enforcement for limited and unlimited events
-- Australia/Melbourne timezone conversion with daylight-saving support
-- PostgreSQL persistence
-- Docker Compose development environment
-- xUnit regression and API tests
+## Highlights
 
-## Proposed domain model
+- REST API design with explicit HTTP behaviour
+- EF Core global query filters for organisation isolation
+- PostgreSQL persistence through Npgsql
+- Dockerised local development
+- `404 Not Found` for foreign-organisation resources
+- `409 Conflict` for full events and duplicate bookings
+- `Capacity = 0` as unlimited
+- Melbourne daylight-saving-aware UTC conversion
+- xUnit regression tests
+- GitHub Actions CI
+
+## Domain
 
 ```text
 Organisation
-  └── Event
+  └── CommunityEvent
        └── Booking
 ```
 
-Each request will operate within an organisation context. Data belonging to one organisation must never be visible to another organisation.
+## Request flow
 
-## Planned API
+```text
+HTTP request
+  + X-Organisation-Id
+        |
+        v
+ASP.NET Core Minimal API
+        |
+        v
+IOrganisationContext
+        |
+        v
+AppDbContext
+  + EF Core global query filters
+        |
+        v
+PostgreSQL
+```
+
+## API
 
 ```http
+GET  /health
 GET  /api/events
 GET  /api/events/{id}
 GET  /api/events/{id}/bookings
 POST /api/events/{id}/bookings
 ```
 
-Expected behaviour will include:
+All `/api` routes require:
 
-- `404 Not Found` for resources outside the current organisation scope
-- `409 Conflict` when a capacity-limited event is full
-- `201 Created` for successful bookings
-- `Capacity = 0` treated as unlimited
+```http
+X-Organisation-Id: <guid>
+```
 
-## Engineering focus
+| Scenario | Result |
+|---|---|
+| Missing/invalid organisation header | `400 Bad Request` |
+| Event belongs to current organisation | `200 OK` |
+| Event missing or belongs to another organisation | `404 Not Found` |
+| Booking created | `201 Created` |
+| Duplicate email | `409 Conflict` |
+| Positive-capacity event is full | `409 Conflict` |
+| Capacity is zero | Unlimited |
 
-The project will favour:
+## Run
 
-1. small, explainable changes;
-2. server-side tenant enforcement;
-3. regression tests for security and business rules;
-4. minimal DTOs rather than exposing persistence entities directly;
-5. documented limitations and design decisions.
+```bash
+docker compose up --build
+```
 
-## Status
+API: `http://localhost:8080`
 
-Initial project setup in progress.
+OpenAPI document in Development: `http://localhost:8080/openapi/v1.json`
+
+## Demo data
+
+Northside organisation:
+`11111111-1111-1111-1111-111111111111`
+
+Northside event:
+`aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`
+
+Southside organisation:
+`22222222-2222-2222-2222-222222222222`
+
+Southside event:
+`bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb`
+
+Example:
+
+```bash
+curl -H "X-Organisation-Id: 11111111-1111-1111-1111-111111111111" \
+  http://localhost:8080/api/events
+```
+
+Create a booking:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Organisation-Id: 11111111-1111-1111-1111-111111111111" \
+  -d '{"name":"Alex Wong","email":"alex@example.com"}' \
+  http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/bookings
+```
+
+A ready-to-run request collection is included in `requests.http`.
+
+## Test
+
+```bash
+dotnet test
+```
+
+The suite covers capacity boundaries, unlimited events, Melbourne standard/daylight-saving conversion, and cross-organisation isolation for both events and bookings.
+
+## Structure
+
+```text
+.
+├── .github/workflows/ci.yml
+├── docs/architecture.md
+├── src/MultiTenantEventApi/
+├── tests/MultiTenantEventApi.Tests/
+├── docker-compose.yml
+├── requests.http
+└── MultiTenantEventApi.sln
+```
+
+## Known limitation
+
+Capacity checking is `COUNT -> CHECK -> INSERT`, so the final seat is not concurrency-safe under simultaneous requests. A database-backed transactional strategy is the next production-hardening step.
