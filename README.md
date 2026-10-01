@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/CandyCheng-git/multi-tenant-event-api/actions/workflows/ci.yml/badge.svg)](https://github.com/CandyCheng-git/multi-tenant-event-api/actions/workflows/ci.yml)
 
-A public backend portfolio project built with **C# / .NET 10**, **Entity Framework Core**, **PostgreSQL**, **Docker Compose** and **xUnit**.
+A public backend portfolio project built with **C# / .NET 9**, **Entity Framework Core**, **PostgreSQL**, **Docker Compose** and **xUnit**.
 
 It demonstrates a small multi-tenant event-booking API with server-side organisation isolation, timezone-aware event data, capacity enforcement and regression tests.
 
